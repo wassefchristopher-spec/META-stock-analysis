@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>META — Meta Platforms Deep Analysis Report</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #060810;
+    --surface: #0d1120;
+    --surface2: #111827;
+    --border: #1e2d47;
+    --accent: #4f9eff;
+    --accent2: #00d4ff;
+    --green: #10b981;
+    --red: #ef4444;
+    --amber: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --chip: rgba(79,158,255,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; line-height: 1.5; min-height: 100vh; }
+  .mono { font-family: 'Space Mono', monospace; }
+
+  header {
+    background: linear-gradient(135deg, #060810 0%, #0a1d3a 50%, #060810 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 40px 48px 32px;
+    position: relative; overflow: hidden;
+  }
+  header::before {
+    content: '∞'; position: absolute; right: -10px; top: -60px;
+    font-size: 260px; font-weight: 800; color: rgba(79,158,255,0.03);
+    font-family: 'Syne', sans-serif; line-height: 1; pointer-events: none;
+  }
+  .header-top { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 20px; }
+  .ticker-badge {
+    display: inline-block; background: rgba(79,158,255,0.12); border: 1px solid rgba(79,158,255,0.3);
+    color: var(--accent); font-family: 'Space Mono', monospace; font-size: 11px; padding: 4px 10px;
+    border-radius: 4px; letter-spacing: 1px; margin-bottom: 8px;
+  }
+  h1 { font-size: 36px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.1; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .price-block { text-align: right; }
+  .header-meta { display: flex; gap: 32px; margin-top: 24px; flex-wrap: wrap; }
+  .meta-item label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); display: block; }
+  .meta-item span { font-family: 'Space Mono', monospace; font-size: 14px; font-weight: 700; }
+
+  main { max-width: 1300px; margin: 0 auto; padding: 40px 32px; }
+  section { margin-bottom: 48px; }
+  .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: var(--accent); margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .scores-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .score-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; position: relative; overflow: hidden; }
+  .score-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .score-card.risk::before { background: linear-gradient(90deg, var(--amber), #ff6b35); }
+  .score-card.growth::before { background: linear-gradient(90deg, var(--green), #06b6d4); }
+  .score-card.overall::before { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .score-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 12px; }
+  .score-value { font-family: 'Space Mono', monospace; font-size: 52px; font-weight: 700; line-height: 1; }
+  .score-card.risk .score-value { color: var(--amber); }
+  .score-card.growth .score-value { color: var(--green); }
+  .score-card.overall .score-value { color: var(--accent); }
+  .score-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .meter-wrap { margin-top: 14px; }
+  .meter-track { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; position: relative; }
+  .meter-fill { height: 100%; border-radius: 4px; transition: width 1.5s cubic-bezier(0.23, 1, 0.32, 1); width: 0; }
+  .score-card.risk .meter-fill { background: linear-gradient(90deg, var(--amber), #ff6b35); }
+  .score-card.growth .meter-fill { background: linear-gradient(90deg, #06b6d4, var(--green)); }
+  .score-card.overall .meter-fill { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .meter-markers { display: flex; justify-content: space-between; margin-top: 4px; font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); }
+
+  .kpi-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
+  .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; transition: border-color 0.2s; }
+  .kpi-card:hover { border-color: var(--accent); }
+  .kpi-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+  .kpi-val { font-family: 'Space Mono', monospace; font-size: 16px; font-weight: 700; }
+  .kpi-card.green .kpi-val { color: var(--green); }
+  .kpi-card.red .kpi-val { color: var(--red); }
+  .kpi-card.amber .kpi-val { color: var(--amber); }
+  .kpi-range { font-size: 9px; color: var(--muted); margin-top: 2px; }
+
+  .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media(max-width: 700px) { .card-grid { grid-template-columns: 1fr; } .scores-row { grid-template-columns: 1fr; } .prose-grid { grid-template-columns: 1fr !important; } .bull-bear { grid-template-columns: 1fr !important; } }
+  .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; position: relative; transition: transform 0.2s, border-color 0.2s; }
+  .metric-card:hover { transform: translateY(-2px); }
+  .metric-card.beat { border-left: 3px solid var(--green); }
+  .metric-card.miss { border-left: 3px solid var(--red); }
+  .metric-card.caution { border-left: 3px solid var(--amber); }
+  .metric-card .m-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .metric-card .m-val { font-family: 'Space Mono', monospace; font-size: 24px; font-weight: 700; margin: 8px 0 4px; }
+  .metric-card.beat .m-val { color: var(--green); }
+  .metric-card.miss .m-val { color: var(--red); }
+  .metric-card.caution .m-val { color: var(--amber); }
+  .metric-card .m-target { font-size: 11px; color: var(--muted); }
+  .beat-badge, .miss-badge, .caution-badge { position: absolute; top: 14px; right: 14px; font-size: 9px; font-weight: 700; letter-spacing: 1px; padding: 3px 7px; border-radius: 3px; }
+  .beat-badge { background: rgba(16,185,129,0.15); color: var(--green); }
+  .miss-badge { background: rgba(239,68,68,0.15); color: var(--red); }
+  .caution-badge { background: rgba(245,158,11,0.15); color: var(--amber); }
+
+  .breakdown-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .bk-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+  .bk-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 6px; }
+  .bk-score { font-family: 'Space Mono', monospace; font-size: 32px; font-weight: 700; }
+  .bk-max { font-size: 12px; color: var(--muted); }
+  .bk-bar-track { height: 6px; background: var(--border); border-radius: 3px; margin-top: 10px; overflow: hidden; }
+  .bk-bar-fill { height: 100%; border-radius: 3px; transition: width 1.8s cubic-bezier(0.23, 1, 0.32, 1); width: 0; }
+  .bk-card:nth-child(1) .bk-bar-fill { background: var(--green); }
+  .bk-card:nth-child(2) .bk-bar-fill { background: var(--green); }
+  .bk-card:nth-child(3) .bk-bar-fill { background: var(--green); }
+  .bk-card:nth-child(1) .bk-score { color: var(--green); }
+  .bk-card:nth-child(2) .bk-score { color: var(--green); }
+  .bk-card:nth-child(3) .bk-score { color: var(--green); }
+
+  .prose-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .prose-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px; }
+  .prose-card h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent); margin-bottom: 12px; }
+  .prose-card p { font-size: 14px; color: #94a3b8; line-height: 1.7; }
+  .prose-card ul { list-style: none; padding: 0; }
+  .prose-card ul li { font-size: 14px; color: #94a3b8; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .prose-card ul li:last-child { border: none; }
+  .prose-card ul li::before { content: '→ '; color: var(--accent); font-weight: 700; }
+
+  .bull-bear { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .bb-card { border-radius: 10px; padding: 24px; }
+  .bb-card.bull { background: rgba(16,185,129,0.05); border: 1px solid rgba(16,185,129,0.2); }
+  .bb-card.bear { background: rgba(239,68,68,0.05); border: 1px solid rgba(239,68,68,0.2); }
+  .bb-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .bb-card.bull h3 { color: var(--green); }
+  .bb-card.bear h3 { color: var(--red); }
+  .bb-card p { font-size: 14px; color: #94a3b8; line-height: 1.7; }
+
+  .analysis-box { background: linear-gradient(135deg, rgba(79,158,255,0.05), rgba(0,212,255,0.05)); border: 1px solid rgba(79,158,255,0.2); border-radius: 12px; padding: 28px 32px; }
+  .analysis-box h2 { font-size: 18px; font-weight: 700; color: var(--accent); margin-bottom: 16px; }
+  .analysis-box p { font-size: 15px; color: #cbd5e1; line-height: 1.8; }
+
+  .holdings-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .holding-chip { background: var(--chip); border: 1px solid rgba(79,158,255,0.2); border-radius: 6px; padding: 8px 14px; font-family: 'Space Mono', monospace; font-size: 12px; }
+  .holding-chip strong { color: var(--accent); }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
+  .tab { padding: 8px 18px; border-radius: 6px; border: 1px solid var(--border); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; background: transparent; color: var(--muted); font-family: 'Syne', sans-serif; }
+  .tab.active { background: var(--accent); color: #000; border-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  footer { border-top: 1px solid var(--border); padding: 24px 48px; }
+  footer p { font-size: 11px; color: var(--muted); text-align: center; line-height: 1.7; }
+
+  @keyframes fadeUp { from { opacity:0; transform: translateY(20px); } to { opacity:1; transform: translateY(0); } }
+  .anim { animation: fadeUp 0.5s ease forwards; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <div>
+      <div class="ticker-badge">NASDAQ: META &nbsp;|&nbsp; FUNDAMENTALS SNAPSHOT JUN 18, 2026</div>
+      <h1>Meta <span>Platforms</span></h1>
+      <div class="sub">Family of Apps (Facebook, Instagram, WhatsApp, Messenger, Threads) + Reality Labs · Menlo Park, CA</div>
+    </div>
+    <div class="price-block" style="min-width:280px">
+      <div class="tradingview-widget-container">
+        <div class="tradingview-widget-container__widget"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js" async>
+        {
+          "symbol": "NASDAQ:META",
+          "width": "100%",
+          "colorTheme": "dark",
+          "isTransparent": true,
+          "locale": "en"
+        }
+        </script>
+      </div>
+      <div class="sub" style="text-align:right;margin-top:4px">52-wk range: $520.26 – $796.25 · Live price via TradingView</div>
+    </div>
+  </div>
+  <div class="header-meta">
+    <div class="meta-item"><label>Market Cap</label><span>~$1.47T</span></div>
+    <div class="meta-item"><label>P/E (TTM)</label><span>~20.5x</span></div>
+    <div class="meta-item"><label>Fwd P/E</label><span>~22.3x</span></div>
+    <div class="meta-item"><label>Dividend Yield</label><span>0.36%</span></div>
+    <div class="meta-item"><label>Next Earnings</label><span>~Late Jul 2026</span></div>
+    <div class="meta-item"><label>Analyst Rating</label><span style="color:var(--green)">Moderate Buy (37 Buy / 4 Hold / 2 Sell)</span></div>
+  </div>
+</header>
+
+<main>
+
+  <!-- SCORES -->
+  <section class="anim" style="animation-delay:0.1s">
+    <div class="section-title">Portfolio Scores</div>
+    <div class="scores-row">
+      <div class="score-card risk">
+        <div class="score-label">Risk Score</div>
+        <div class="score-value" id="riskVal">0</div>
+        <div class="score-sub">Moderate · AI capex scale + regulatory overhang, offset by earnings quality</div>
+        <div class="meter-wrap">
+          <div class="meter-track"><div class="meter-fill" id="riskMeter"></div></div>
+          <div class="meter-markers"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+        </div>
+      </div>
+      <div class="score-card growth">
+        <div class="score-label">Growth Potential</div>
+        <div class="score-value" id="growthVal">0</div>
+        <div class="score-sub">AI-enhanced ad targeting + Reels monetization + 4B-user platform</div>
+        <div class="meter-wrap">
+          <div class="meter-track"><div class="meter-fill" id="growthMeter"></div></div>
+          <div class="meter-markers"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+        </div>
+      </div>
+      <div class="score-card overall">
+        <div class="score-label">Overall Score</div>
+        <div class="score-value" id="overallVal">0</div>
+        <div class="score-sub">Revenue growth vs stock price — fundamentals have outrun the share price, not the reverse</div>
+        <div class="meter-wrap">
+          <div class="meter-track"><div class="meter-fill" id="overallMeter"></div></div>
+          <div class="meter-markers"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCORE BREAKDOWN -->
+  <section class="anim" style="animation-delay:0.2s">
+    <div class="section-title">Score Breakdown (35 / 35 / 30 Weighting)</div>
+    <div class="breakdown-grid">
+      <div class="bk-card">
+        <div class="bk-title">Valuation (35%)</div>
+        <div><span class="bk-score" id="bk1">0</span><span class="bk-max"> / 35</span></div>
+        <div class="bk-bar-track"><div class="bk-bar-fill" id="bkBar1"></div></div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px">P/E 20.5x, Fwd P/E 22.3x, PEG ~1.4x — almost every multiple sits squarely inside the ideal range. Cheapest of the mega-cap AI compounders on a growth-adjusted basis.</p>
+      </div>
+      <div class="bk-card">
+        <div class="bk-title">Financial Health & Growth (35%)</div>
+        <div><span class="bk-score" id="bk2">0</span><span class="bk-max"> / 35</span></div>
+        <div class="bk-bar-track"><div class="bk-bar-fill" id="bkBar2"></div></div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px">Q1 2026 revenue +33% YoY (fastest since 2021), operating margin 41%, net margin ~47% — beats nearly every bracket on the checklist.</p>
+      </div>
+      <div class="bk-card">
+        <div class="bk-title">Returns & Efficiency (30%)</div>
+        <div><span class="bk-score" id="bk3">0</span><span class="bk-max"> / 30</span></div>
+        <div class="bk-bar-track"><div class="bk-bar-fill" id="bkBar3"></div></div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px">ROA 20.9%, low D/E of 0.36, $81B cash on hand — efficient capital structure, though FCF is being compressed hard by AI capex right now.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- KPI STRIP -->
+  <section class="anim" style="animation-delay:0.3s">
+    <div class="section-title">Key Metrics Strip</div>
+    <div class="kpi-strip">
+      <div class="kpi-card green"><div class="kpi-label">Net Margin</div><div class="kpi-val">~47%*</div><div class="kpi-range">Target 5–20% — far exceeds (tax benefit boosted)</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Operating Margin</div><div class="kpi-val">41%</div><div class="kpi-range">Target 10–30% ✓✓ exceeds</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Gross Margin</div><div class="kpi-val">~81%</div><div class="kpi-range">Target 20–50% — far exceeds (software economics)</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Rev Growth Q1'26</div><div class="kpi-val">+33%</div><div class="kpi-range">Target 20%+ ✓✓ fastest since 2021</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Q2'26 Rev Guide</div><div class="kpi-val">+25% mid</div><div class="kpi-range">$58–61B guided range</div></div>
+      <div class="kpi-card green"><div class="kpi-label">EPS Growth Q1'26</div><div class="kpi-val">+62%</div><div class="kpi-range">Target 20%+ ✓✓ ($10.44 vs $6.43)</div></div>
+      <div class="kpi-card green"><div class="kpi-label">P/E (TTM)</div><div class="kpi-val">20.5x</div><div class="kpi-range">Target 20–40 ✓ low end of range</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Fwd P/E</div><div class="kpi-val">~22.3x</div><div class="kpi-range">Target 20–30 ✓ reasonable</div></div>
+      <div class="kpi-card green"><div class="kpi-label">PEG Ratio</div><div class="kpi-val">~1.4x</div><div class="kpi-range">Target 0.5–1.5 ✓ near top but in range</div></div>
+      <div class="kpi-card amber"><div class="kpi-label">P/S Ratio</div><div class="kpi-val">~8.2x (fwd)</div><div class="kpi-range">Target 1.0–5.0 — above range, below Mag7 avg</div></div>
+      <div class="kpi-card amber"><div class="kpi-label">FCF Margin</div><div class="kpi-val">~22%</div><div class="kpi-range">Target 10–15%+ ✓ but compressing on capex</div></div>
+      <div class="kpi-card green"><div class="kpi-label">ROA</div><div class="kpi-val">20.9%</div><div class="kpi-range">Target 5–10%+ ✓✓ far exceeds</div></div>
+    </div>
+    <p style="font-size:10px;color:var(--muted);margin-top:10px">*Q1 2026 net margin inflated by an $8.03B one-time tax benefit; underlying net margin excluding that benefit is closer to 33%, still comfortably above the ideal range.</p>
+  </section>
+
+  <!-- TABS -->
+  <section class="anim" style="animation-delay:0.4s">
+    <div class="section-title">Metric Grids</div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('val')">Valuation</button>
+      <button class="tab" onclick="switchTab('fin')">Financial Health</button>
+      <button class="tab" onclick="switchTab('grw')">Growth</button>
+    </div>
+
+    <div id="tab-val" class="tab-panel active">
+      <div class="card-grid">
+        <div class="metric-card beat">
+          <div class="beat-badge">BEAT</div>
+          <div class="m-label">P/E Ratio (TTM)</div>
+          <div class="m-val">20.5x</div>
+          <div class="m-target">Ideal: 20–40x — sits right at the floor of the range, cheap for the growth rate</div>
+        </div>
+        <div class="metric-card beat">
+          <div class="beat-badge">BEAT</div>
+          <div class="m-label">Forward P/E</div>
+          <div class="m-val">~22.3x</div>
+          <div class="m-target">Ideal: 20–30x ✓ reasonable given 28%+ expected 2026 earnings growth</div>
+        </div>
+        <div class="metric-card beat">
+          <div class="beat-badge">BEAT</div>
+          <div class="m-label">PEG Ratio</div>
+          <div class="m-val">~1.4x</div>
+          <div class="m-target">Ideal: 0.5–1.5x ✓ near the top of range but still inside it</div>
+        </div>
+        <div class="metric-card caution">
+          <div class="caution-badge">CAUTION</div>
+          <div class="m-label">P/B Ratio</div>
+          <div class="m-val">~9–10x</div>
+          <div class="m-target">Ideal: 0.5–1.5x — high, but typical for an asset-light, IP-driven mega-cap</div>
+        </div>
+        <div class="metric-card caution">
+          <div class="caution-badge">CAUTION</div>
+          <div class="m-label">P/S Ratio (Fwd)</div>
+          <div class="m-val">~8.2x</div>
+          <div class="m-target">Ideal: 1.0–5.0x — above range, though below the "Magnificent 7" average of 9.7x</div>
+        </div>
+        <div class="metric-card caution">
+          <div class="caution-badge">CAUTION</div>
+          <div class="m-label">EV/EBITDA</div>
+          <div class="m-val">~15–17x</div>
+          <div class="m-target">Ideal: 10–20x ✓ comfortably in range — one of the cheaper mega-cap AI names on this metric</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-fin" class="tab-panel">
+      <div class="card-grid">
+        <div class="metric-card beat">
+          <div class="beat-badge">BEAT</div>
+          <div class="m-label">Gross Profit Margin</div>
+          <div class="m-val">~81%</div>
+          <div class="m-target">Ideal: 20–50% — far exceeds, reflects ad-platform software economics</div>
+        </div>
+        <div class="metric-card beat">
+          <div class="beat-badge">BEAT</div>
+          <div class="m-label">Operating Margin</div>
+          <div class="m-val">41%</div>
+          <div class="m-target">Ideal: 10–30% ✓✓ best-in-class among large-cap tech</div>
+        </div>
+        <div class="metric-card beat">
+          <div class="beat-badge">BEAT</div>
+          <div class="m-label">Net Profit Margin</div>
+          <div class="m-val">~33% (ex. tax benefit)</div>
+          <div class="m-target">Ideal: 5–20% — exceeds even adjusting for the one-time tax item</div>
+        </div>
+        <div class="metric-card beat">
+          <div class="beat-badge">BEAT</div>
+          <div class="m-label">EBITDA Margin</div>
+          <div class="m-val">~48%</div>
+          <div class="m-target">Ideal: 20%+ ✓✓ far exceeds</div>
+        </div>
+        <div class="metric-card caution">
+          <div class="caution-badge">CAUTION</div>
+          <div class="m-label">FCF Margin</div>
+          <div class="m-val">~22% (Q1, compressing)</div>
+          <div class="m-target">Ideal: 10–15%+ ✓ but capex guide raised to $125–145B for 2026, watch this trend</div>
+        </div>
+        <div class="metric-card beat">
+          <div class="beat-badge">BEAT</div>
+          <div class="m-label">Debt / Equity</div>
+          <div class="m-val">0.36x</div>
+          <div class="m-target">Conservative balance sheet, $81B cash and marketable securities</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-grw" class="tab-panel">
+      <div class="card-grid">
+        <div class="metric-card beat">
+          <div class="beat-badge">BEAT</div>
+          <div class="m-label">1Y Revenue Growth (Q1'26)</div>
+          <div class="m-val">+33%</div>
+          <div class="m-target">Ideal: 20%+ ✓✓ fastest quarterly growth since 2021</div>
+        </div>
+        <div class="metric-card beat">
+          <div class="beat-badge">BEAT</div>
+          <div class="m-label">Q2 2026 Revenue Guide</div>
+          <div class="m-val">$58–61B</div>
+          <div class="m-target">Midpoint implies ~25% YoY growth</div>
+        </div>
+        <div class="metric-card beat">
+          <div class="beat-badge">BEAT</div>
+          <div class="m-label">EPS Growth (Q1'26)</div>
+          <div class="m-val">+62%</div>
+          <div class="m-target">Ideal: 20%+ ✓✓ $10.44 vs $6.43 YoY</div>
+        </div>
+        <div class="metric-card caution">
+          <div class="caution-badge">CAUTION</div>
+          <div class="m-label">Daily Active People</div>
+          <div class="m-val">3.56B (-5% QoQ)</div>
+          <div class="m-target">Missed estimates of 3.62B; Iran/Russia disruptions cited as one-off causes</div>
+        </div>
+        <div class="metric-card beat">
+          <div class="beat-badge">BEAT</div>
+          <div class="m-label">Ad Pricing Growth</div>
+          <div class="m-val">+12% YoY</div>
+          <div class="m-target">Price per ad rising alongside +19% impression growth — both levers working</div>
+        </div>
+        <div class="metric-card caution">
+          <div class="caution-badge">CAUTION</div>
+          <div class="m-label">3Y / 5Y Revenue CAGR</div>
+          <div class="m-val">~18–20%</div>
+          <div class="m-target">Ideal: 20%+ — close to target, weighed down by the 2022 slowdown year</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUALITATIVE -->
+  <section class="anim" style="animation-delay:0.5s">
+    <div class="section-title">Business Model & Moat</div>
+    <div class="prose-grid">
+      <div class="prose-card">
+        <h3>How Meta Makes Money</h3>
+        <p>Meta's business is almost entirely advertising — about 98% of revenue comes from selling ad space across Facebook, Instagram, WhatsApp, Messenger, and Threads. The product in plain English: nearly 4 billion people use Meta's apps to scroll, message, and share, and Meta's AI algorithms watch what each person engages with, then sell businesses the ability to show that exact person a relevant ad at exactly the right moment. The better the AI gets at predicting what you'll click on, the more advertisers are willing to pay per ad — which is why ad prices rose 12% even as the number of ads shown only grew 19%. Reality Labs (VR/AR headsets, smart glasses) is the side bet — currently a money-losing division building toward Meta's longer-term vision of AI-powered wearable computing.</p>
+      </div>
+      <div class="prose-card">
+        <h3>Moat Analysis</h3>
+        <p style="margin-bottom:10px">Meta's moat is built on scale and data, reinforced by network effects:</p>
+        <ul>
+          <li>Close to 4 billion monthly active users across the app family — unmatched scale in social</li>
+          <li>Network effects: your friends and family are already on these apps, hard to replicate</li>
+          <li>Decades of behavioral ad-targeting data feeding increasingly sophisticated AI models</li>
+          <li>Custom MTIA silicon (in-house chip program) reduces dependence on NVIDIA, captures margin</li>
+          <li>Open-source Llama strategy builds a developer ecosystem that lowers Meta's own AI costs</li>
+          <li>Vertical integration across the entire ad stack — no other platform sees this much user signal</li>
+        </ul>
+      </div>
+      <div class="prose-card">
+        <h3>Top 3 Competitors</h3>
+        <div class="holdings-row" style="margin-bottom:12px">
+          <div class="holding-chip"><strong>Alphabet</strong> Search + YouTube</div>
+          <div class="holding-chip"><strong>Amazon</strong> Retail media + AWS</div>
+          <div class="holding-chip"><strong>TikTok/ByteDance</strong> Short-form video</div>
+        </div>
+        <p>Alphabet competes directly for global digital ad dollars but through a different intent layer (search vs. social discovery). Amazon's retail media business is growing fast and benefits from purchase-intent data Meta doesn't have. TikTok is the most direct threat to engagement time, particularly among younger users, though Meta's Reels has closed much of that gap — Reels now accounts for more than half of time spent on Instagram.</p>
+      </div>
+      <div class="prose-card">
+        <h3>Catalyst Watch (Next 12 Months)</h3>
+        <ul>
+          <li>Q2 2026 earnings (~late July) — watch whether DAP recovers post Iran/Russia disruptions</li>
+          <li>Continued AI glasses rollout (Oakley Vanguard, Ray-Ban lines) — early but growing revenue</li>
+          <li>MTIA 400 custom silicon scaling — reduces NVIDIA dependence, improves margins over time</li>
+          <li>Broadcom XPU deployment (multiple gigawatts) beginning 2027 — visibility into cost structure</li>
+          <li>2026 capex guide raised to $125–145B — execution on this scale-up is the key swing factor</li>
+          <li>Planned workforce optimization announced — watch for margin impact in coming quarters</li>
+          <li>Threads and WhatsApp monetization — still underexploited relative to Facebook/Instagram</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="anim" style="animation-delay:0.6s">
+    <div class="section-title">Asymmetry & Deals</div>
+    <div class="prose-grid">
+      <div class="prose-card">
+        <h3>Asymmetry Check</h3>
+        <p>The asymmetry here is <strong style="color:var(--green)">genuinely favorable</strong> relative to its mega-cap AI peers. The floor is unusually solid for a stock of this size — a real, profitable, cash-generative advertising business with 41% operating margins and a 20.5x trailing P/E, among the cheapest of the large AI-exposed names. The ceiling is open: if AI-enhanced ad targeting keeps improving monetization per user the way it has, and if Reality Labs eventually breaks even, there's real upside beyond just "the ad business grows with the economy." The main risk isn't valuation — it's execution risk on a capex budget that just got raised to as much as $145 billion, with no guarantee that spending translates one-for-one into ad revenue growth.</p>
+      </div>
+      <div class="prose-card">
+        <h3>Government & Major Partnerships</h3>
+        <ul>
+          <li>Nebius — up to $27B multi-year AI infrastructure deal; $12B committed, Vera Rubin GPU platform</li>
+          <li>Google Cloud — ~$10B cloud capacity contract, diversifying compute supply beyond AWS/Azure</li>
+          <li>NVIDIA — major GPU purchaser; also using AMD chips alongside new NVIDIA systems</li>
+          <li>Broadcom — custom MTIA silicon partner; multiple gigawatts of XPUs planned from 2027</li>
+          <li>Crusoe — new deal signed to secure additional AI computing power (June 2026)</li>
+          <li>$107B step-up in contractual commitments in Q1 2026 alone from multi-year cloud/infra deals</li>
+          <li>No direct US government contract like Cameco's, but indirectly tied to US AI policy and export rules on chips</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- BULL / BEAR -->
+  <section class="anim" style="animation-delay:0.7s">
+    <div class="section-title">Bull vs Bear</div>
+    <div class="bull-bear">
+      <div class="bb-card bull">
+        <h3>🐂 Bull Case</h3>
+        <p>Meta is quietly the cheapest of the major AI-exposed mega-caps while putting up the best growth numbers among them — revenue just grew at its fastest pace since 2021, and that's before the bulk of its AI investments have even started monetizing. The advertising machine keeps getting better, not worse, with AI improving both how many ads it can show and how much advertisers are willing to pay for them. Unlike pure infrastructure plays, Meta doesn't need to convince the world that AI demand is real — it already has 4 billion people generating engagement data every day, and AI just makes the existing business more efficient. If even part of Reality Labs and AI glasses eventually pays off, that's a free option layered on top of an already excellent core business trading at a reasonable multiple.</p>
+      </div>
+      <div class="bb-card bear">
+        <h3>🐻 Bear Case</h3>
+        <p>The capex number is the story to watch — Meta just raised its 2026 spending guide to as much as $145 billion, and a lot of that money is going into compute that may or may not generate a proportional return. If AI infrastructure spending across the entire industry turns out to be ahead of actual AI revenue, Meta is one of the biggest spenders in that bubble, not a bystander. User growth already stumbled this quarter, missing estimates, and even if the explanation given was one-off geopolitical disruptions, any further softening would be a bad sign for a stock priced on continued engagement growth. Regulatory risk in the EU remains a real, recurring threat to the ad-targeting model the entire business depends on, and youth-related litigation continues to be an overhang that could result in costly settlements down the line.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ANALYST SUMMARY -->
+  <section class="anim" style="animation-delay:0.8s">
+    <div class="section-title">Analyst Summary</div>
+    <div class="analysis-box">
+      <h2>Short Analysis</h2>
+      <p>
+        Meta stands out among the mega-cap AI names for a simple reason: the fundamentals have actually caught up to — and arguably outrun — the stock price. Q1 2026 revenue grew 33% year-over-year, the fastest pace since 2021, with a 41% operating margin that very few companies at this scale can match. Trading at a 20.5x trailing P/E and a forward P/E around 22x, Meta is priced more like a steady industrial than a company growing earnings 28%+ this year — that gap is the core of the bull case.
+        <br><br>
+        Nearly every metric on this checklist lands inside or above the ideal range: gross margins near 81%, EBITDA margins near 48%, a PEG ratio around 1.4 that's still inside the "fairly valued" band, and an EV/EBITDA multiple of roughly 15-17x that's actually cheaper than several AI infrastructure peers despite Meta owning the demand side of that infrastructure, not just the supply side. The one real soft spot was daily active people missing estimates this quarter, though management attributed that to one-off disruptions in Iran and Russia rather than a structural slowdown.
+        <br><br>
+        The honest risk isn't valuation, it's capital discipline. Meta just raised its 2026 capex guidance to as much as $145 billion — nearly double what it spent in 2025 — and the market will eventually demand to see that translate into either revenue growth or margin expansion. So far the company has delivered on that promise quarter after quarter, which is exactly why this name screens as a genuine large-cap anchor rather than a speculative AI bet: real earnings, real cash flow, real moat, at a price that doesn't require you to assume everything goes perfectly. <strong style="color:var(--accent)">Overall Score: 84/100 — High quality compounder, reasonably priced; among the strongest risk-adjusted setups on this checklist.</strong>
+      </p>
+    </div>
+  </section>
+
+  <!-- ── PRICE PROJECTION ── -->
+  <section class="anim" style="animation-delay:0.9s">
+    <div class="section-title">12-Month Price Scenarios (NASDAQ: META, USD)</div>
+    <div class="scores-row" style="margin-bottom:20px">
+      <div class="score-card" style="border-left:3px solid var(--red)">
+        <div class="score-label">Bear Case</div>
+        <div class="score-value" style="color:var(--red);font-size:36px">$480–$550</div>
+        <div class="score-sub" style="margin-top:6px">−17% to −5% from $577.22</div>
+        <p style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6">Capex spending fails to translate into proportional ad revenue growth, AI infrastructure sentiment sours broadly across the sector, regulatory action in the EU intensifies, or user growth softening proves structural rather than one-off.</p>
+      </div>
+      <div class="score-card" style="border-left:3px solid var(--amber);border:1px solid rgba(79,158,255,0.3)">
+        <div class="score-label">Base Case <span style="color:var(--accent);font-size:10px;margin-left:6px">ANALYST AVG $688.63</span></div>
+        <div class="score-value" style="color:var(--amber);font-size:36px">$650–$730</div>
+        <div class="score-sub" style="margin-top:6px">+13% to +26% from $577.22</div>
+        <p style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6">Ad revenue growth continues in the high-20s/low-30s%, margins hold near current levels, AI infrastructure investments begin showing measurable ROI. 37 of 43 analysts rate Buy or Strong Buy with an average target of $688.63.</p>
+      </div>
+      <div class="score-card" style="border-left:3px solid var(--green)">
+        <div class="score-label">Bull Case</div>
+        <div class="score-value" style="color:var(--green);font-size:36px">$830–$960</div>
+        <div class="score-sub" style="margin-top:6px">+44% to +66% from $577.22</div>
+        <p style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6">AI-driven ad targeting delivers a step-change in monetization, Reality Labs/AI glasses begin contributing meaningfully, multiple expands back toward 25x as growth proves durable. Highest published targets (Pivotal Research, Wolfe) sit near this range.</p>
+      </div>
+    </div>
+    <p style="font-size:11px;color:var(--muted);text-align:center">Note: All figures in USD (NASDAQ:META). Recent target revisions have been mixed — Jefferies cut to $600, Guggenheim cut to $675, while Wolfe raised to $730 and Roth Capital raised to $620 — reflecting genuine analyst disagreement on capex payoff timing, not a one-sided consensus.</p>
+  </section>
+
+  <!-- ── PORTFOLIO ENTRY ── -->
+  <section class="anim" style="animation-delay:1.0s">
+    <div class="section-title">Portfolio Entry Strategy — 10% Target Allocation (TSFA, USD/CAD, Long-Term Hold)</div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Defaults to your $13,000 CAD TSFA — drag to model contributions as your account grows ($500 CAD increments). Calculated in CAD using an approximate USD/CAD conversion.</p>
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
+        <label style="font-size:13px;color:var(--muted);white-space:nowrap">TSFA size</label>
+        <input type="range" id="portSlider" min="1000" max="100000" step="500" value="13000"
+          oninput="updateCalc()"
+          style="flex:1;accent-color:var(--accent);height:4px;cursor:pointer">
+        <span id="portVal" style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;min-width:100px;text-align:right;color:var(--accent)">$13,000</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">10% Target (CAD)</div>
+          <div id="targetAmt" style="font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--accent)">$1,300</div>
+        </div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">Shares Needed</div>
+          <div id="sharesNeeded" style="font-family:'Space Mono',monospace;font-size:22px;font-weight:700">1</div>
+        </div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">Monthly DCA (12 mo)</div>
+          <div id="dcaAmt" style="font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--green)">$108</div>
+        </div>
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">Initial Tranche (25%)</div>
+          <div id="lumpAmt" style="font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--amber)">$325</div>
+        </div>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:14px">META's high per-share price (~$577 USD / ~$800 CAD equivalent) means fractional shares or a brokerage supporting partial-share purchases makes this far more practical than whole-share accumulation at a $13K account size. Confirm your brokerage supports fractional shares before planning monthly buys.</p>
+    </div>
+
+    <div class="bull-bear" style="margin-bottom:20px">
+      <div class="bb-card bull">
+        <h3>🗓 Steady DCA (Recommended for this thesis)</h3>
+        <p>Unlike CCO, META doesn't need a "wait for the pullback" framing — the valuation is already reasonable relative to growth. A simple monthly or quarterly DCA into the position works well here since you're not overpaying at current levels. If a real pullback into the $480-550 bear zone shows up, that's a legitimate opportunity to accelerate buying, not just a worst-case scenario to tolerate.</p>
+      </div>
+      <div class="bb-card bear">
+        <h3>⚠ What Could Break The Thesis</h3>
+        <p>A sustained gap between AI capex and AI-driven revenue that doesn't close — if the $125-145B 2026 spend doesn't show up in margins or growth within 4-6 quarters, that's a real signal to reassess. A major EU regulatory action that forces changes to the ad-targeting model. A structural (not one-off) decline in daily active users. None of these are base-case right now, but they're the scenarios worth monitoring each quarter.</p>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+      <div style="background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.2);border-top:2px solid var(--green);border-radius:10px;padding:18px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">Strong Buy Zone</div>
+        <div style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:var(--green)">Below $550 USD</div>
+        <p style="font-size:12px;color:var(--muted);margin-top:6px">Within the bear-case band but still a fundamentally sound business at this price. A genuine gift if it happens — add aggressively.</p>
+      </div>
+      <div style="background:rgba(245,158,11,0.05);border:1px solid rgba(245,158,11,0.2);border-top:2px solid var(--amber);border-radius:10px;padding:18px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">Accumulate Zone</div>
+        <div style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:var(--amber)">$550 – $730 USD</div>
+        <p style="font-size:12px;color:var(--muted);margin-top:6px">Current trading range, bracketing the $577.22 price and the $688.63 analyst average target. Steady DCA zone — fair price for a quality business.</p>
+      </div>
+      <div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.2);border-top:2px solid var(--red);border-radius:10px;padding:18px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">Caution / Slow Zone</div>
+        <div style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:var(--red)">Above $830 USD</div>
+        <p style="font-size:12px;color:var(--muted);margin-top:6px">Near the high end of analyst targets, approaching the prior all-time-high zone ($787-796). Not a sell signal, but slow new buys here.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p>This report is for informational purposes only and does not constitute financial advice. Price ticker is live via TradingView (NASDAQ: META). All other fundamentals, ratios, and analysis reflect a snapshot as of June 18, 2026 — ask for a refresh anytime to regenerate fundamentals with current figures. Data sourced from SEC filings, Meta investor relations, Yahoo Finance, Morningstar, MarketBeat, CNBC, Investing.com, and public analyst estimates. Past performance does not guarantee future results. All investments involve risk of loss.</p>
+</footer>
+
+<script>
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      document.getElementById('riskMeter').style.width = '42%';
+      animCount('riskVal', 42, 1500);
+      document.getElementById('growthMeter').style.width = '78%';
+      animCount('growthVal', 78, 1500);
+      document.getElementById('overallMeter').style.width = '84%';
+      animCount('overallVal', 84, 1500);
+      setTimeout(() => {
+        document.getElementById('bkBar1').style.width = '83%'; // 29/35
+        animCount('bk1', 29, 1200);
+        document.getElementById('bkBar2').style.width = '94%'; // 33/35
+        animCount('bk2', 33, 1200);
+        document.getElementById('bkBar3').style.width = '73%'; // 22/30
+        animCount('bk3', 22, 1200);
+      }, 300);
+    }, 400);
+  });
+
+  function animCount(id, target, duration) {
+    const el = document.getElementById(id);
+    const start = performance.now();
+    function step(ts) {
+      const progress = Math.min((ts - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = Math.round(eased * target);
+      if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function switchTab(name) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    event.target.classList.add('active');
+  }
+
+  function updateCalc() {
+    const port = parseInt(document.getElementById('portSlider').value);
+    const sharePriceCAD = 577.22 * 1.39; // META USD * approx USD/CAD rate
+    const target = port * 0.10;
+    const shares = Math.max(1, Math.round((target / sharePriceCAD) * 10) / 10);
+    const dca = Math.round(target / 12);
+    const lump = Math.round(target * 0.25);
+    document.getElementById('portVal').textContent = '$' + port.toLocaleString();
+    document.getElementById('targetAmt').textContent = '$' + Math.round(target).toLocaleString();
+    document.getElementById('sharesNeeded').textContent = shares < 1 ? shares.toFixed(1) : Math.round(shares).toLocaleString();
+    document.getElementById('dcaAmt').textContent = '$' + dca.toLocaleString();
+    document.getElementById('lumpAmt').textContent = '$' + lump.toLocaleString();
+  }
+  updateCalc();
+</script>
+</body>
+</html>
